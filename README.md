@@ -6,3 +6,4 @@ Legend
 key      | name
 ---------|--------------------------
 gcj      | Google code jam
+hr       | HackerRank
