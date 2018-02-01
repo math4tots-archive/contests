@@ -7,3 +7,4 @@ key      | name
 ---------|--------------------------
 gcj      | Google code jam
 hr       | HackerRank
+usaco    | USACO training pages
