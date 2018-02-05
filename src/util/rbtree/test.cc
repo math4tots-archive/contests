@@ -21,7 +21,6 @@
 // be as informative to someone new reading the tests as
 // something that will show you exactly what the tree looks like.
 
-
 // NOTE: tested with clang++ (Apple LLVM version 9.0.0 (clang-900.0.39.2))
 //       with options
 //         -Weverything -Werror --std=c++11 -Wno-padded -Wno-c++98-compat
