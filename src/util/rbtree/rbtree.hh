@@ -29,6 +29,7 @@
 #include <functional>
 #include <initializer_list>
 
+// TODO: Create const versions of begin(), end(), cbegin(), cend().
 template <class Key, class Compare = std::less<Key> >
 class RbTree {
 
