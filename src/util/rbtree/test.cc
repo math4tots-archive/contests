@@ -26,7 +26,7 @@
 //         -Weverything -Werror --std=c++11 -Wno-padded -Wno-c++98-compat
 
 int main() {
-  std::vector<std::string> vals({"a", "b", "c", "d", "e"});
+  const std::vector<std::string> vals({"a", "b", "c", "d", "e"});
   RbTree<std::string> tree(vals.begin(), vals.end());
 
   // Each node is represented by <key>:<subtree-size>.
@@ -74,5 +74,25 @@ int main() {
   assert(
     std::vector<std::string>(tree.find("c"), tree.end()) ==
     std::vector<std::string>({"c", "d", "e"}));
-}
 
+  // Test custom comparator
+  {
+    RbTree<std::string, std::greater<std::string>> rtree(vals.begin(),
+                                                         vals.end());
+    assert(rtree.debugstr() == "RbTree(((e:1)d:3(c:1))b:5(a:1))");
+    assert(
+      std::vector<std::string>(rtree.begin(), rtree.end()) ==
+      std::vector<std::string>({"e", "d", "c", "b", "a"}));
+  }
+  {
+    auto comp = [&](const std::string &a, const std::string &b) {
+      return (a.size() == b.size() && a < b) || a.size() < b.size();
+    };
+    std::vector<std::string> vs({"aaa", "a", "b", "bb", "c", "bd"});
+    RbTree<std::string, decltype(comp)> rtree(vs.begin(), vs.end(), comp);
+    assert(rtree.debugstr() == "RbTree((a:1)b:6((c:1)bb:4((bd:1)aaa:2)))");
+    assert(
+      std::vector<std::string>(rtree.begin(), rtree.end()) ==
+      std::vector<std::string>({"a", "b", "c", "bb", "bd", "aaa"}));
+  }
+}

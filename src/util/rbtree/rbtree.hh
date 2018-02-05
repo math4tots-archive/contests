@@ -26,13 +26,14 @@
 
 #include <vector>
 #include <sstream>
+#include <functional>
 
-// TODO: Allow custom comparator like STL containers.
-template <class Key>
+template <class Key, class Compare = std::less<Key> >
 class RbTree {
 
  public:
   using size_type = long;
+  using key_compare = Compare;
 
   static constexpr bool LEFT = false;
   static constexpr bool RIGHT = true;
@@ -70,15 +71,16 @@ class RbTree {
     }
   };
 
-  static bool less(const Key &a, const Key &b, bool dir) {
-    return dir == LEFT ? a < b : a > b;
+  bool less(const Key &a, const Key &b, bool dir) {
+    return dir == LEFT ? lt(a, b) : lt(b, a);
   }
 
+  Compare lt;
   Node *const nil, *root;
 
   Node *treeSearch(Node *x, const Key &k) const {
     while (x != nil && k != x->key) {
-      if (k < x->key) {
+      if (lt(k, x->key)) {
         x = x->child[LEFT];
       } else {
         x = x->child[RIGHT];
@@ -182,13 +184,13 @@ class RbTree {
     Node *x = root;
     while (x != nil) {
       y = x;
-      x = x->child[z->key < x->key ? LEFT : RIGHT];
+      x = x->child[lt(z->key, x->key) ? LEFT : RIGHT];
     }
     z->parent = y;
     if (y == nil) {
       root = z;
     } else {
-      if (z->key < y->key) {
+      if (lt(z->key, y->key)) {
         y->child[LEFT] = z;
       } else {
         y->child[RIGHT] = z;
@@ -297,7 +299,7 @@ class RbTree {
  public:
 
   class iterator {
-    RbTree<Key> *const tree;
+    RbTree *const tree;
     Node *node;
 
    public:
@@ -311,7 +313,7 @@ class RbTree {
     using iterator_category = std::input_iterator_tag;
 
     iterator()=default;
-    iterator(RbTree<Key> *t, Node *n): tree(t), node(n) {}
+    iterator(RbTree *t, Node *n): tree(t), node(n) {}
     iterator(const iterator&)=default;
     ~iterator()=default;
     iterator &operator=(const iterator&)=default;
@@ -359,9 +361,11 @@ class RbTree {
     }
   };
 
-  RbTree(): nil(new Node()), root(nil) {}
+  RbTree(const Compare &comp = Compare()):
+      lt(comp), nil(new Node()), root(nil) {}
   template <class InputIterator>
-  RbTree(InputIterator first, InputIterator last): RbTree() {
+  RbTree(InputIterator first, InputIterator last,
+         const Compare &comp = Compare()): RbTree(comp) {
     for (; first != last; ++first) {
       add(*first);
     }
