@@ -95,4 +95,12 @@ int main() {
       std::vector<std::string>(rtree.begin(), rtree.end()) ==
       std::vector<std::string>({"a", "b", "c", "bb", "bd", "aaa"}));
   }
+
+  // Test initializer_list
+  {
+    RbTree<std::string> tr({"a", "b", "c"});
+    assert(
+      std::vector<std::string>(tr.begin(), tr.end()) ==
+      std::vector<std::string>({"a", "b", "c"}));
+  }
 }

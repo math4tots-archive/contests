@@ -27,6 +27,7 @@
 #include <vector>
 #include <sstream>
 #include <functional>
+#include <initializer_list>
 
 template <class Key, class Compare = std::less<Key> >
 class RbTree {
@@ -370,6 +371,9 @@ class RbTree {
       add(*first);
     }
   }
+  RbTree(std::initializer_list<Key> keys, const Compare &comp = Compare()):
+      RbTree(keys.begin(), keys.end(), comp) {}
+
   ~RbTree() {
     std::vector<Node*> stack(1, root);
     while (!stack.empty()) {
