@@ -29,7 +29,6 @@
 #include <functional>
 #include <initializer_list>
 
-// TODO: Create const versions of begin(), end(), cbegin(), cend().
 template <class Key, class Compare = std::less<Key> >
 class RbTree {
 
@@ -106,28 +105,28 @@ class RbTree {
     }
   }
 
-  Node *treeExtrema(Node *x, bool dir) const {
+  template <class N> N *ttreeExtrema(N *x, bool dir) const {
     while (x->child[dir] != nil) {
       x = x->child[dir];
     }
     return x;
   }
 
-  Node *treeMaximum(Node *x) const {
-    return treeExtrema(x, RIGHT);
+  Node *treeExtrema(Node *x, bool dir) const {
+    return ttreeExtrema(x, dir);
   }
 
-  Node *treeMinimum(Node *x) const {
-    return treeExtrema(x, LEFT);
+  const Node *treeExtrema(const Node *x, bool dir) const {
+    return treeExtrema(x, dir);
   }
 
-  Node *treeSuccessor(Node *x, const bool right) const {
+  template <class N> N *ttreeSuccessor(N *x, const bool right) const {
     const bool left = !right;
 
     if (x->child[right] != nil) {
       return treeExtrema(x->child[right], left);
     }
-    Node *y = x->parent;
+    N *y = x->parent;
     while (y != nil && x == y->child[right]) {
       x = y;
       y = y->parent;
@@ -135,12 +134,12 @@ class RbTree {
     return y;
   }
 
-  Node *treeSuccessor(Node *x) const {
-    return treeSuccessor(x, RIGHT);
+  Node *treeSuccessor(Node *x, const bool right) const {
+    return ttreeSuccessor(x, right);
   }
 
-  Node *treePredecessor(Node *x) const {
-    return treeSuccessor(x, LEFT);
+  const Node *treeSuccessor(const Node *x, const bool right) const {
+    return ttreeSuccessor(x, right);
   }
 
   // NOTE: Assumes x and x->child[!left] are not nil.
@@ -238,7 +237,7 @@ class RbTree {
   Node *rbDelete(Node *z) {
     Node *y =
         (z->child[LEFT] == nil || z->child[RIGHT] == nil) ?
-        z : treeSuccessor(z);
+        z : treeSuccessor(z, RIGHT);
     subtreeSizeDeleteFixup(y);
     Node *x = y->child[LEFT] != nil ? y->child[LEFT] : y->child[RIGHT];
     x->parent = y->parent;
@@ -298,70 +297,74 @@ class RbTree {
     x->color = BLACK;
   }
 
- public:
-
-  class iterator {
-    RbTree *const tree;
-    Node *node;
+  template <class T, class N, class K>
+  class ibase final {
+    T *tree;
+    N *node;
 
    public:
 
     //// types to make this a true 'InputIterator' under the eyes of
     //// the all powerful standard library.
     using difference_type = void;
-    using value_type = Key;
-    using pointer = value_type*;
-    using reference = value_type&;
+    using value_type = Key;  // value_type never has const
+    using pointer = K*;
+    using reference = K&;
     using iterator_category = std::input_iterator_tag;
 
-    iterator()=default;
-    iterator(RbTree *t, Node *n): tree(t), node(n) {}
-    iterator(const iterator&)=default;
-    ~iterator()=default;
-    iterator &operator=(const iterator&)=default;
+    ibase()=default;
+    ibase(T *t, N *n): tree(t), node(n) {}
+    ibase(const ibase&)=default;
+    ~ibase()=default;
+    ibase &operator=(const ibase&)=default;
 
     reference operator*() const {
       return node->key;
     }
 
-    value_type *operator->() const {
+    pointer *operator->() const {
       return &(node->key);
     }
 
-    iterator &operator++() {
-      node = tree->treeSuccessor(node);
+    ibase &operator++() {
+      node = tree->treeSuccessor(node, RIGHT);
       return *this;
     }
 
-    iterator &operator++(int) {
-      iterator ret = *this;
+    ibase &operator++(int) {
+      ibase ret = *this;
       ++*this;
       return ret;
     }
 
-    iterator &operator--() {
-      node = tree->treePredecessor(node);
+    ibase &operator--() {
+      node = tree->treeSuccessor(node, LEFT);
       return *this;
     }
 
-    iterator &operator--(int) {
-      iterator ret = *this;
+    ibase &operator--(int) {
+      ibase ret = *this;
       --*this;
       return ret;
     }
 
-    bool operator==(const iterator &other) const {
+    bool operator==(const ibase &other) const {
       return node == other.node;
     }
 
-    bool operator!=(const iterator &other) const {
+    bool operator!=(const ibase &other) const {
       return node != other.node;
     }
 
-    Node *getNode() const {
+    N *getNode() const {
       return node;
     }
   };
+
+ public:
+
+  using iterator = ibase<RbTree, Node, Key>;
+  using const_iterator = ibase<const RbTree, const Node, const Key>;
 
   RbTree(const Compare &comp = Compare()):
       lt(comp), nil(new Node()), root(nil) {}
@@ -394,11 +397,27 @@ class RbTree {
   }
 
   iterator begin() {
-    return iterator(this, treeMinimum(root));
+    return iterator(this, treeExtrema(root, LEFT));
+  }
+
+  const_iterator begin() const {
+    return const_iterator(this, treeExtrema(root, LEFT));
+  }
+
+  const_iterator cbegin() const {
+    return begin();
   }
 
   iterator end() {
     return iterator(this, nil);
+  }
+
+  const_iterator end() const {
+    return const_iterator(this, nil);
+  }
+
+  const_iterator cend() const {
+    return end();
   }
 
   iterator find(const Key &key) {

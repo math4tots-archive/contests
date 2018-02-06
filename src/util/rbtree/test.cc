@@ -75,6 +75,14 @@ int main() {
     std::vector<std::string>(tree.find("c"), tree.end()) ==
     std::vector<std::string>({"c", "d", "e"}));
 
+  // iterator should be copy-assignable.
+  {
+    auto iter = tree.begin();
+    auto iter2 = iter;
+    ++iter;
+    iter = iter2;
+  }
+
   // Test custom comparator
   {
     RbTree<std::string, std::greater<std::string>> rtree(vals.begin(),
@@ -98,9 +106,20 @@ int main() {
 
   // Test initializer_list
   {
-    RbTree<std::string> tr({"a", "b", "c"});
+    // also const iterators should work
+    const RbTree<std::string> tr({"a", "b", "c"});
     assert(
       std::vector<std::string>(tr.begin(), tr.end()) ==
       std::vector<std::string>({"a", "b", "c"}));
+  }
+
+  // Assignment through iterator should work
+  {
+    RbTree<std::string> tr({"a"});
+    assert(tr.size() == 1);
+    assert(tr[0] == "a");
+    *tr.begin() = "hi";
+    assert(tr.size() == 1);
+    assert(tr[0] == "hi");
   }
 }
