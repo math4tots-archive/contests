@@ -22,16 +22,11 @@ def solve(ladders):
 
 for _ in range(int(input())):
     ladders = dict()
-    for _ in range(int(input())):
-        start, end = map(int, input().split())
-        start -= 1
-        end -= 1
-        ladders[start] = end
-
-    for _ in range(int(input())):
-        start, end = map(int, input().split())
-        start -= 1
-        end -= 1
-        ladders[start] = end
+    for _ in range(2):
+        for _ in range(int(input())):
+            start, end = map(int, input().split())
+            start -= 1
+            end -= 1
+            ladders[start] = end
 
     print(solve(ladders))
