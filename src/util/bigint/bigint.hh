@@ -181,14 +181,14 @@ struct BigInt final {
   }
 
   static Digits add(const Digits &a, const Digits &b) {
-    Digit carry = 0;
+    Digit2 carry = 0;
     Digits ret;
     size_t i = 0;
 
     while (i < a.size() || i < b.size() || carry) {
-      Digit aval = i < a.size() ? a[i] : 0;
-      Digit bval = i < b.size() ? b[i] : 0;
-      Digit next = aval + bval + carry;
+      Digit2 aval = static_cast<Digit2>(i < a.size() ? a[i] : 0);
+      Digit2 bval = static_cast<Digit2>(i < b.size() ? b[i] : 0);
+      Digit2 next = aval + bval + carry;
       ret.push_back(next % BASE);
       carry = next / BASE;
       i++;
