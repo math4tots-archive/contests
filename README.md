@@ -16,6 +16,3 @@ util     | collection of helpful utils
 Problems I've started on, but haven't finished
 
 * hr/synchronous-shopping
-* hr/fibonacci-modified (C++ version).
-  - Python version works fine, but C++ version has performance issues
-    due to BigInt implementation.

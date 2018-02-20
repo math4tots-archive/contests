@@ -10,11 +10,12 @@
 
 struct BigInt final {
   using Digit = long;
+  using Digit2 = long long;
   using Sign = bool;
   using Digits = std::vector<Digit>;
 
-  static constexpr const Digit BASE = 10000;
-  static constexpr const Digit DIGIT_WIDTH = 4;
+  static constexpr const Digit BASE = 1000000000;
+  static constexpr const Digit DIGIT_WIDTH = 9;  // should be log10(BASE)
   static constexpr const Sign PLUS = true;
   static constexpr const Sign MINUS = false;
 
@@ -22,7 +23,7 @@ struct BigInt final {
   Digits digits;
 
   BigInt(): sign(PLUS) {}
-  BigInt(Digit i) {
+  BigInt(Digit2 i) {
     sign = i >= 0 ? PLUS : MINUS;
     if (i < 0) {
       i = -i;
@@ -81,13 +82,19 @@ struct BigInt final {
 
   BigInt operator*(const BigInt &b) const {
     // TODO: Use better algorithm than long multiplication
-    BigInt ret;
+    std::vector<Digit> dd(digits.size() + b.digits.size(), 0);
     for (size_t i = 0; i < digits.size(); i++) {
       for (size_t j = 0; j < b.digits.size(); j++) {
-        ret = ret + BigInt(digits[i] * b.digits[j]).shift(i + j);
+        auto digit = static_cast<Digit2>(digits[i]) *
+                     static_cast<Digit2>(b.digits[j]);
+        auto pos = i + j;
+        while (digit) {
+          dd[pos++] += digit % BASE;
+          digit /= BASE;
+        }
       }
     }
-    return ret;
+    return BigInt(sign == b.sign ? PLUS : MINUS, std::move(dd));
   }
 
   BigInt operator-(const BigInt &b) const {
@@ -152,6 +159,25 @@ struct BigInt final {
 
   void flip_sign() {
     sign = !sign;
+  }
+
+  static void iadd(Digits &a, const Digits &b) {
+    Digit carry = 0;
+    size_t i = 0;
+
+    while (i < a.size() || i < b.size() || carry) {
+      if (i >= a.size()) {
+        a.push_back(0);
+      }
+      Digit next = a[i] + (i < b.size() ? b[i] : 0) + carry;
+      carry = next / BASE;
+      a[i] = next % BASE;
+      i++;
+    }
+
+    while (!a.empty() && a.back() == 0) {
+      a.pop_back();
+    }
   }
 
   static Digits add(const Digits &a, const Digits &b) {
