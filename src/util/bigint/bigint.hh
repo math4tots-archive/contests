@@ -3,6 +3,8 @@
 
 // Requires C++11
 
+#include <assert.h>
+#include <deque>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,7 +14,7 @@ struct BigInt final {
   using Digit = long;
   using Digit2 = long long;
   using Sign = bool;
-  using Digits = std::vector<Digit>;
+  using Digits = std::deque<Digit>;
 
   static constexpr const Digit BASE = 1000000000;
   static constexpr const Digit DIGIT_WIDTH = 9;  // should be log10(BASE)
@@ -32,10 +34,10 @@ struct BigInt final {
       digits.push_back(i % BASE);
       i /= BASE;
     }
-    remove_extraneous_zeros();
+    remove_extraneous_zeros(digits);
   }
   explicit BigInt(Sign s, Digits dd): sign(s), digits(std::move(dd)) {
-    remove_extraneous_zeros();
+    remove_extraneous_zeros(digits);
     if (digits.empty()) {
       sign = PLUS;
     }
@@ -50,9 +52,9 @@ struct BigInt final {
       return sign < other.sign;
     }
     if (sign == MINUS) {
-      return other.digits < digits;
+      return lt(other.digits, digits);
     }
-    return digits < other.digits;
+    return lt(digits, other.digits);
   }
 
   explicit operator bool() const { return !digits.empty(); }
@@ -71,26 +73,45 @@ struct BigInt final {
   }
 
   BigInt operator+(const BigInt &b) const {
+    // A + B or -A + -B
     if (sign == b.sign) {
       return BigInt(sign, add(digits, b.digits));
     }
+    // A + (-B)
     if (sign == PLUS) {
-      return subtract(digits, b.digits);
+      if (compare(digits, b.digits) >= 0) {
+        return BigInt(PLUS, subtract(digits, b.digits));
+      }
+      return BigInt(MINUS, subtract(b.digits, digits));
     }
-    return subtract(b.digits, digits);
+    // -A + B
+    if (compare(digits, b.digits) >= 0) {
+      return BigInt(MINUS, subtract(digits, b.digits));
+    }
+    return BigInt(PLUS, subtract(b.digits, digits));
   }
 
   BigInt operator*(const BigInt &b) const {
     // TODO: Use better algorithm than long multiplication
-    std::vector<Digit> dd(digits.size() + b.digits.size(), 0);
+    Digits dd(digits.size() + b.digits.size(), 0);
     for (size_t i = 0; i < digits.size(); i++) {
       for (size_t j = 0; j < b.digits.size(); j++) {
-        auto digit = static_cast<Digit2>(digits[i]) *
+        auto carry = static_cast<Digit2>(digits[i]) *
                      static_cast<Digit2>(b.digits[j]);
         auto pos = i + j;
-        while (digit) {
-          dd[pos++] += digit % BASE;
-          digit /= BASE;
+        while (carry) {
+          Digit2 digit = dd[pos];
+          digit += carry;
+
+          Digit2 next_carry = 0;
+          if (digit >= BASE) {
+            next_carry = digit / BASE;
+            digit %= BASE;
+          }
+          dd[pos] = digit;
+
+          carry = next_carry;
+          pos++;
         }
       }
     }
@@ -103,6 +124,22 @@ struct BigInt final {
 
   BigInt operator-() const {
     return BigInt(!sign, digits);
+  }
+
+  std::pair<BigInt, BigInt> divmod(const BigInt &b) const {
+    auto pair = divide(digits, b.digits);
+    Sign outsign = sign == b.sign ? PLUS : MINUS;
+    return std::make_pair(
+      BigInt(outsign, std::move(pair.first)),
+      BigInt(outsign, std::move(pair.second)));
+  }
+
+  BigInt operator/(const BigInt &b) const {
+    return divmod(b).first;
+  }
+
+  BigInt operator%(const BigInt &b) const {
+    return divmod(b).second;
   }
 
   std::string str() const {
@@ -125,6 +162,7 @@ struct BigInt final {
       auto digitstr = ss.str();
 
       if (iter != digits.rbegin()) {
+        assert(digitstr.size() <= DIGIT_WIDTH);
         for (size_t j = 0; j < DIGIT_WIDTH - digitstr.size(); j++) {
           out << "0";
         }
@@ -140,18 +178,13 @@ struct BigInt final {
 
  private:
 
-  BigInt shift(size_t n) const {
-    Digits dd;
+  void shift(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      dd.push_back(0);
+      digits.push_front(0);
     }
-    for (auto digit: digits) {
-      dd.push_back(digit);
-    }
-    return BigInt(sign, std::move(dd));
   }
 
-  void remove_extraneous_zeros() {
+  static void remove_extraneous_zeros(Digits &digits) {
     while (!digits.empty() && digits.back() == 0) {
       digits.pop_back();
     }
@@ -159,6 +192,32 @@ struct BigInt final {
 
   void flip_sign() {
     sign = !sign;
+  }
+
+  static int compare(const Digits &a, const Digits &b) {
+    if (a.size() != b.size()) {
+      return a.size() < b.size() ? -1 : 1;
+    }
+    auto aiter = a.rbegin();
+    auto biter = b.rbegin();
+    while (aiter != a.rend()) {
+      auto da = *aiter;
+      auto db = *biter;
+      if (da != db) {
+        return da < db ? -1 : 1;
+      }
+      ++aiter;
+      ++biter;
+    }
+    return 0;
+  }
+
+  static bool lt(const Digits &a, const Digits &b) {
+    return compare(a, b) < 0;
+  }
+
+  static bool eq(const Digits &a, const Digits &b) {
+    return compare(a, b) == 0;
   }
 
   static void iadd(Digits &a, const Digits &b) {
@@ -175,62 +234,94 @@ struct BigInt final {
       i++;
     }
 
-    while (!a.empty() && a.back() == 0) {
-      a.pop_back();
+    remove_extraneous_zeros(a);
+  }
+
+  // NOTE: You must know that a >= b.
+  // If a < b, behavior is undefined.
+  static void isubtract(Digits &a, const Digits &b) {
+    Digit borrow = 0;
+    Digits dd;
+    size_t i = 0;
+
+    while (i < b.size() || borrow) {
+      assert(i < a.size());  // if false, b > a
+      Digit2 digit = a[i];
+      Digit bval = i < b.size() ? b[i] : 0;
+      digit -= bval;
+      digit -= borrow;
+      borrow = 0;
+      while (digit < 0) {
+        borrow++;
+        digit += BASE;
+      }
+      a[i] = static_cast<Digit>(digit);
+      i++;
     }
+
+    remove_extraneous_zeros(a);
   }
 
   static Digits add(const Digits &a, const Digits &b) {
-    Digit2 carry = 0;
-    Digits ret;
-    size_t i = 0;
-
-    while (i < a.size() || i < b.size() || carry) {
-      Digit2 aval = static_cast<Digit2>(i < a.size() ? a[i] : 0);
-      Digit2 bval = static_cast<Digit2>(i < b.size() ? b[i] : 0);
-      Digit2 next = aval + bval + carry;
-      ret.push_back(next % BASE);
-      carry = next / BASE;
-      i++;
-    }
-
-    while (!ret.empty() && ret.back() == 0) {
-      ret.pop_back();
-    }
-
+    Digits ret = a;
+    iadd(ret, b);
     return ret;
   }
 
-  static std::pair<Digit, Digits>
-  subtract_helper(const Digits &a, const Digits &b) {
-    Digit borrow = 0;
-    Digits dd;
-    Sign sign = PLUS;
-    size_t i = 0;
-
-    while (i < a.size() || i < b.size()) {
-      Digit aval = i < a.size() ? a[i] : 0;
-      Digit bval = i < b.size() ? b[i] : 0;
-      Digit next = aval - bval - borrow;
-      borrow = 0;
-      while (next < 0) {
-        next += BASE;
-        borrow++;
-      }
-      dd.push_back(next);
-      i++;
-    }
-
-    return std::make_pair(sign, std::move(dd));
+  static Digits subtract(const Digits &a, const Digits &b) {
+    Digits ret = a;
+    isubtract(ret, b);
+    return ret;
   }
 
-  static BigInt subtract(const Digits &a, const Digits &b) {
-    auto pair1 = subtract_helper(a, b);
-    if (pair1.first == 0) {
-      return BigInt(PLUS, std::move(pair1.second));
+  // If b == 0, undefined behavior
+  // Returns (Quotient, Remainder) pair
+  static std::pair<Digits, Digits> divide(const Digits &a, const Digits &b) {
+    // TODO: Use a faster division algorithm.
+
+    // Division by zero
+    assert(!b.empty());
+
+    // 0 / D
+    if (a.empty()) {
+      return std::make_pair(Digits(), Digits());
     }
-    auto pair2 = subtract_helper(b, a);
-    return BigInt(MINUS, std::move(pair2.second));
+
+    Digits quo, rem;
+
+    if (a.size() == 1 && b.size() == 1) {
+      quo.push_back(a[0] / b[0]);
+      rem.push_back(a[0] % b[0]);
+      remove_extraneous_zeros(quo);
+      remove_extraneous_zeros(rem);
+      return std::make_pair(quo, rem);
+    }
+
+    // dpow2 -> D, 2D, 2^2*D, 2^3*D, ...
+    // pow2 -> 1, 2, 2^2, 2^3, ...
+    std::vector<Digits> dpow2(1, b);
+    std::vector<Digits> pow2(1, Digits({1}));
+    while (lt(dpow2.back(), a)) {
+      dpow2.push_back(add(dpow2.back(), dpow2.back()));
+      pow2.push_back(add(pow2.back(), pow2.back()));
+    }
+    dpow2.pop_back();
+    pow2.pop_back();
+
+    // Calculate quotient by repeatedly subtracting from a.
+    rem = a;
+    auto dpiter = dpow2.rbegin();
+    auto piter = pow2.rbegin();
+    while (dpiter != dpow2.rend() && !rem.empty()) {
+      if (compare(rem, *dpiter) >= 0) {
+        isubtract(rem, *dpiter);
+        iadd(quo, *piter);
+      }
+      ++dpiter;
+      ++piter;
+    }
+
+    return std::make_pair(std::move(quo), std::move(rem));
   }
 };
 
